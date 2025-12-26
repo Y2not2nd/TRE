@@ -4,19 +4,13 @@ document.addEventListener("DOMContentLoaded", () => {
   const otherBox = document.getElementById("otherBox");
   const form = document.getElementById("treForm");
 
-  if (templateSelect && otherBox) {
-    templateSelect.addEventListener("change", () => {
-      otherBox.classList.toggle(
-        "hidden",
-        templateSelect.value !== "other"
-      );
-    });
-  }
-
-  if (!form) {
-    console.error("Form #treForm not found");
-    return;
-  }
+  templateSelect.addEventListener("change", () => {
+    if (templateSelect.value === "other") {
+      otherBox.classList.remove("hidden");
+    } else {
+      otherBox.classList.add("hidden");
+    }
+  });
 
   form.addEventListener("submit", async (e) => {
     e.preventDefault();
@@ -55,18 +49,15 @@ document.addEventListener("DOMContentLoaded", () => {
       }
     };
 
-    const res = await fetch("https://YOUR-LA1-ENDPOINT-HERE", {
+    await fetch("https://YOUR-LA1-ENDPOINT-HERE", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify(payload)
     });
 
-    if (!res.ok) {
-      alert("Submission failed");
-      return;
-    }
-
     alert("Request submitted for approval");
+    form.reset();
+    otherBox.classList.add("hidden");
   });
 
 });
