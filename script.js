@@ -1,12 +1,11 @@
 document.addEventListener("DOMContentLoaded", () => {
+  const form = document.getElementById("treForm");
   const templateSelect = document.getElementById("templateSelect");
   const otherBox = document.getElementById("otherBox");
-  const form = document.getElementById("treForm");
+  const statusMessage = document.getElementById("statusMessage");
 
-  if (!templateSelect || !otherBox || !form) {
-    console.error("TRE form elements not found");
-    return;
-  }
+  // CHANGE THIS
+  const LOGIC_APP_URL = "https://YOUR-LA1-ENDPOINT-HERE";
 
   templateSelect.addEventListener("change", () => {
     if (templateSelect.value === "other") {
@@ -19,51 +18,46 @@ document.addEventListener("DOMContentLoaded", () => {
   form.addEventListener("submit", async (e) => {
     e.preventDefault();
 
+    statusMessage.className = "hidden";
+    statusMessage.textContent = "";
+
     const f = e.target;
 
+    // 🔒 CANONICAL PAYLOAD – DO NOT CHANGE WITHOUT LOGIC APP UPDATE
     const payload = {
-      requester: {
-        fullName: f.requesterName.value,
-        email: f.requesterEmail.value,
-        department: f.department.value,
-        role: f.role.value
-      },
-      lineManager: {
-        fullName: f.managerName.value,
-        email: f.managerEmail.value
-      },
-      workspace: {
-        name: f.workspaceName.value,
-        purpose: f.purpose.value,
-        justification: f.justification.value
-      },
-      classification: {
-        requestType: f.requestType.value,
-        expectedDuration: f.duration.value,
-        urgency: f.urgency.value
-      },
-      infrastructure: {
-        template: f.template.value,
-        otherDetails: f.otherDetails?.value || null
-      },
-      audit: {
-        submittedAt: new Date().toISOString(),
-        source: "tre-request-portal",
-        version: "1.0"
-      }
+      workspaceName: f.workspaceName.value,
+      owner: f.requesterEmail.value
     };
 
-    console.log("Submitting payload:", payload);
+    console.log("Submitting to Logic App:", payload);
 
-    await fetch("https://YOUR-LA1-ENDPOINT-HERE", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify(payload)
-    });
+    try {
+      const response = await fetch(LOGIC_APP_URL, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json"
+        },
+        body: JSON.stringify(payload)
+      });
 
-    alert("Request submitted for approval");
+      if (!response.ok) {
+        const errorText = await response.text();
+        throw new Error(errorText || "Submission failed");
+      }
 
-    form.reset();
-    otherBox.classList.add("hidden");
+      statusMessage.textContent =
+        "Request submitted successfully. Approval email has been sent.";
+      statusMessage.className = "success";
+
+      form.reset();
+      otherBox.classList.add("hidden");
+
+    } catch (err) {
+      console.error("Submission error:", err);
+
+      statusMessage.textContent =
+        "Failed to submit request. Please check the console or contact support.";
+      statusMessage.className = "error";
+    }
   });
 });
