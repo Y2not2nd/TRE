@@ -9,19 +9,25 @@
     body {
       font-family: system-ui, -apple-system, BlinkMacSystemFont, sans-serif;
       background: #f7f9fc;
-      padding: 40px;
-      max-width: 1100px;
-      margin: auto;
+      padding: 32px;
     }
 
-    h1 { margin-bottom: 24px; }
+    h1 {
+      margin-bottom: 24px;
+    }
 
     .card {
-      background: white;
+      background: #ffffff;
       padding: 24px;
-      margin-bottom: 24px;
+      margin-bottom: 20px;
       border-radius: 8px;
       box-shadow: 0 1px 3px rgba(0,0,0,0.05);
+    }
+
+    .row {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 16px;
     }
 
     label {
@@ -32,32 +38,41 @@
 
     input, textarea, select {
       width: 100%;
-      padding: 10px;
-      margin-top: 6px;
-      border: 1px solid #ccc;
-      border-radius: 4px;
+      padding: 8px;
+      margin-top: 4px;
+      font-size: 14px;
     }
 
-    textarea { min-height: 90px; }
-
-    .row {
-      display: grid;
-      grid-template-columns: 1fr 1fr;
-      gap: 16px;
+    textarea {
+      min-height: 80px;
     }
 
     button {
-      margin-top: 24px;
       padding: 14px 20px;
       font-size: 16px;
-      background: #2563eb;
-      color: white;
-      border: none;
-      border-radius: 6px;
+      font-weight: 600;
       cursor: pointer;
     }
 
-    button:hover { background: #1e4fd6; }
+    .hidden {
+      display: none;
+    }
+
+    #statusMessage {
+      margin-top: 20px;
+      padding: 12px;
+      border-radius: 6px;
+    }
+
+    .success {
+      background: #e6f7ec;
+      color: #1e7f43;
+    }
+
+    .error {
+      background: #fdecea;
+      color: #b42318;
+    }
   </style>
 </head>
 
@@ -67,6 +82,7 @@
 
 <form id="treForm">
 
+  <!-- Requester -->
   <div class="card">
     <h3>Requester Information</h3>
 
@@ -80,23 +96,106 @@
         <input name="requesterEmail" type="email" required />
       </div>
     </div>
+
+    <div class="row">
+      <div>
+        <label>Department</label>
+        <input name="department" required />
+      </div>
+      <div>
+        <label>Role / Discipline</label>
+        <input name="role" required />
+      </div>
+    </div>
   </div>
 
+  <!-- Line Manager -->
   <div class="card">
-    <h3>Workspace</h3>
+    <h3>Line Manager</h3>
+
+    <div class="row">
+      <div>
+        <label>Manager Name</label>
+        <input name="managerName" required />
+      </div>
+      <div>
+        <label>Manager Email</label>
+        <input name="managerEmail" type="email" required />
+      </div>
+    </div>
+  </div>
+
+  <!-- Workspace -->
+  <div class="card">
+    <h3>Workspace Details</h3>
 
     <label>Workspace Name</label>
     <input
       name="workspaceName"
       required
-      pattern="[a-z0-9-]+"
-      placeholder="lowercase-hyphens-only"
+      minlength="3"
+      pattern="^[a-z0-9-]{3,}$"
+      title="Lowercase letters, numbers and hyphens only (min 3)"
+      placeholder="example: physics-research-ws"
     />
+
+    <label>Purpose</label>
+    <textarea name="purpose" required></textarea>
+
+    <label>Business / Research Justification</label>
+    <textarea name="justification" required></textarea>
+  </div>
+
+  <!-- Classification -->
+  <div class="card">
+    <h3>Classification</h3>
+
+    <label>Request Type</label>
+    <select name="requestType" required>
+      <option value="standard">Standard</option>
+      <option value="emergency">Emergency</option>
+      <option value="temporary">Temporary</option>
+      <option value="data-only">Data Only</option>
+    </select>
+
+    <label>Expected Duration</label>
+    <select name="duration" required>
+      <option value="short">&lt; 3 months</option>
+      <option value="medium">3–12 months</option>
+      <option value="long">&gt; 12 months</option>
+    </select>
+
+    <label>Urgency</label>
+    <select name="urgency" required>
+      <option value="normal">Normal</option>
+      <option value="urgent">Urgent</option>
+    </select>
+  </div>
+
+  <!-- Infrastructure -->
+  <div class="card">
+    <h3>Infrastructure Requirements</h3>
+
+    <label>Template</label>
+    <select name="template" id="templateSelect" required>
+      <option value="shared">Shared Compute</option>
+      <option value="dedicated">Dedicated Compute</option>
+      <option value="connect-existing">Connect Existing</option>
+      <option value="data-only">Data Only</option>
+      <option value="other">Other</option>
+    </select>
+
+    <div id="otherBox" class="hidden">
+      <label>Other Requirements</label>
+      <textarea name="otherDetails"></textarea>
+    </div>
   </div>
 
   <button type="submit">Submit Request</button>
 
 </form>
+
+<div id="statusMessage" class="hidden"></div>
 
 <script src="./script.js"></script>
 </body>
