@@ -1,233 +1,186 @@
-{
-    "definition": {
-        "$schema": "https://schema.management.azure.com/providers/Microsoft.Logic/schemas/2016-06-01/workflowdefinition.json#",
-        "contentVersion": "1.0.4.0",
-        "triggers": {
-            "When_an_HTTP_request_is_received": {
-                "type": "Request",
-                "kind": "Http",
-                "inputs": {
-                    "method": "POST",
-                    "schema": {
-                        "type": "object",
-                        "required": [
-                            "workspaceName",
-                            "owner"
-                        ],
-                        "properties": {
-                            "workspaceName": {
-                                "type": "string",
-                                "minLength": 3
-                            },
-                            "owner": {
-                                "type": "string"
-                            },
-                            "intakeData": {
-                                "type": "object",
-                                "description": "Rich intake data from the frontend form for governance and auditing"
-                            }
-                        }
-                    }
-                }
-            }
-        },
-        "actions": {
-            "Initialize_variables": {
-                "runAfter": {},
-                "type": "InitializeVariable",
-                "inputs": {
-                    "variables": [
-                        {
-                            "name": "requestId",
-                            "type": "string",
-                            "value": "@{guid()}"
-                        },
-                        {
-                            "name": "researchTags",
-                            "type": "object",
-                            "value": {
-                                "CostCentre": "TRE",
-                                "System": "TRE",
-                                "Environment": "research",
-                                "DataClassification": "restricted",
-                                "Owner": "Yassin"
-                            }
-                        },
-                        {
-                            "name": "internalExecutionKey",
-                            "type": "string",
-                            "value": "dfdf"
-                        },
-                        {
-                            "name": "location",
-                            "type": "string",
-                            "value": "uksouth"
-                        },
-                        {
-                            "name": "privateEndpointSubnetId",
-                            "type": "string",
-                            "value": "/subscriptions/4d38ea20-7a50-4815-9c82-527d9f182f8b/resourceGroups/rg-tre-network-uksouth/providers/Microsoft.Network/virtualNetworks/vnet-tre-uksouth/subnets/snet-privateendpoints"
-                        },
-                        {
-                            "name": "privateDnsSubscriptionId",
-                            "type": "string",
-                            "value": "4d38ea20-7a50-4815-9c82-527d9f182f8b"
-                        },
-                        {
-                            "name": "privateDnsResourceGroupName",
-                            "type": "string",
-                            "value": "rg-tre-dns-uksouth"
-                        },
-                        {
-                            "name": "templateSpecId",
-                            "type": "string",
-                            "value": "/subscriptions/4d38ea20-7a50-4815-9c82-527d9f182f8b/resourceGroups/rg-tre-mgmt-uksouth/providers/Microsoft.Resources/templateSpecs/tre-workspace-template/versions/1.0.0"
-                        }
-                    ]
-                }
-            },
-            "Validate_workspace_name": {
-                "actions": {
-                    "Response_Accepted": {
-                        "type": "Response",
-                        "inputs": {
-                            "statusCode": 202,
-                            "headers": {
-                                "Content-Type": "application/json"
-                            },
-                            "body": {
-                                "status": "Request received",
-                                "message": "Your workspace request has been submitted and is pending approval",
-                                "requestId": "@{variables('requestId')}",
-                                "workspaceName": "@{triggerBody()?['workspaceName']}",
-                                "owner": "@{triggerBody()?['owner']}"
-                            }
-                        }
-                    },
-                    "Send_approval_email": {
-                        "runAfter": {
-                            "Response_Accepted": [
-                                "Succeeded"
-                            ]
-                        },
-                        "type": "ApiConnectionWebhook",
-                        "inputs": {
-                            "host": {
-                                "connection": {
-                                    "name": "@parameters('$connections')['outlook']['connectionId']"
-                                }
-                            },
-                            "body": {
-                                "NotificationUrl": "@listCallbackUrl()",
-                                "Message": {
-                                    "To": "yassin_123@hotmail.co.uk",
-                                    "Subject": "TRE – Research Workspace Request Approval",
-                                    "Importance": "Normal",
-                                    "Options": "Approve, Reject",
-                                    "Body": "A Trusted Research Environment request requires approval.\n\nRequest ID:\n@{variables('requestId')}\n\nRequested by:\n@{triggerBody()?['owner']}\n\nWorkspace name:\n@{triggerBody()?['workspaceName']}\n\nRequester Name:\n@{triggerBody()?['intakeData']?['requesterDetails']?['name']}\n\nDepartment:\n@{triggerBody()?['intakeData']?['requesterDetails']?['department']}\n\nRequest Type:\n@{triggerBody()?['intakeData']?['requestClassification']?['requestType']}\n\nUrgency:\n@{triggerBody()?['intakeData']?['requestClassification']?['urgency']}\n\nJustification:\n@{triggerBody()?['intakeData']?['requestClassification']?['businessJustification']}\n\nPlease approve or reject."
-                                }
-                            },
-                            "path": "/approvalmail/$subscriptions"
-                        }
-                    },
-                    "Approval_decision": {
-                        "actions": {
-                            "Call_Deployment_Logic_App": {
-                                "type": "Http",
-                                "inputs": {
-                                    "method": "POST",
-                                    "uri": "https://prod-03.uksouth.logic.azure.com:443/workflows/1a5d35392a594f2ea8e53d12accc8231/triggers/When_an_HTTP_request_is_received/paths/invoke?api-version=2016-10-01&sp=%2Ftriggers%2FWhen_an_HTTP_request_is_received%2Frun&sv=1.0&sig=LvnpxYV1cySZ_m0D63rwEedqDT3mtUHRZnme_w5kbkI",
-                                    "headers": {
-                                        "Content-Type": "application/json",
-                                        "x-tre-internal-key": "@{variables('internalExecutionKey')}"
-                                    },
-                                    "body": {
-                                        "requestId": "@{variables('requestId')}",
-                                        "workspaceName": "@{triggerBody()?['workspaceName']}",
-                                        "owner": "@{triggerBody()?['owner']}",
-                                        "location": "@{variables('location')}",
-                                        "researchTags": "@{variables('researchTags')}",
-                                        "network": {
-                                            "privateEndpointSubnetId": "@{variables('privateEndpointSubnetId')}"
-                                        },
-                                        "dns": {
-                                            "privateDnsSubscriptionId": "@{variables('privateDnsSubscriptionId')}",
-                                            "privateDnsResourceGroupName": "@{variables('privateDnsResourceGroupName')}"
-                                        },
-                                        "templateSpec": {
-                                            "id": "@{variables('templateSpecId')}"
-                                        }
-                                    }
-                                }
-                            }
-                        },
-                        "runAfter": {
-                            "Send_approval_email": [
-                                "Succeeded"
-                            ]
-                        },
-                        "else": {
-                            "actions": {}
-                        },
-                        "expression": {
-                            "equals": [
-                                "@body('Send_approval_email')?['SelectedOption']",
-                                "Approve"
-                            ]
-                        },
-                        "type": "If"
-                    }
-                },
-                "runAfter": {
-                    "Initialize_variables": [
-                        "Succeeded"
-                    ]
-                },
-                "else": {
-                    "actions": {
-                        "Response_Invalid": {
-                            "type": "Response",
-                            "inputs": {
-                                "statusCode": 400,
-                                "headers": {
-                                    "Content-Type": "application/json"
-                                },
-                                "body": {
-                                    "status": "Invalid",
-                                    "message": "Invalid workspace name. Must be at least 3 characters."
-                                }
-                            }
-                        }
-                    }
-                },
-                "expression": {
-                    "greaterOrEquals": [
-                        "@length(triggerBody()?['workspaceName'])",
-                        3
-                    ]
-                },
-                "type": "If"
-            }
-        },
-        "outputs": {},
-        "parameters": {
-            "$connections": {
-                "type": "Object",
-                "defaultValue": {}
-            }
-        }
-    },
-    "parameters": {
-        "$connections": {
-            "type": "Object",
-            "value": {
-                "outlook": {
-                    "id": "/subscriptions/4d38ea20-7a50-4815-9c82-527d9f182f8b/providers/Microsoft.Web/locations/uksouth/managedApis/outlook",
-                    "connectionId": "/subscriptions/4d38ea20-7a50-4815-9c82-527d9f182f8b/resourceGroups/rg-tre-mgmt-uksouth/providers/Microsoft.Web/connections/outlook",
-                    "connectionName": "outlook",
-                    "connectionProperties": {}
-                }
-            }
-        }
+// API Configuration
+const API_ENDPOINT = 'https://prod-03.uksouth.logic.azure.com:443/workflows/1a5d35392a594f2ea8e53d12accc8231/triggers/When_an_HTTP_request_is_received/paths/invoke?api-version=2016-10-01&sp=%2Ftriggers%2FWhen_an_HTTP_request_is_received%2Frun&sv=1.0&sig=LvnpxYV1cySZ_m0D63rwEedqDT3mtUHRZnme_w5kbkI';
+
+// DOM Elements
+const form = document.getElementById('treRequestForm');
+const submitButton = form.querySelector('.btn-submit');
+const resetButton = document.getElementById('resetButton');
+const successMessage = document.getElementById('successMessage');
+const infrastructureTemplate = document.getElementById('infrastructureTemplate');
+const infrastructureOtherGroup = document.getElementById('infrastructureOtherGroup');
+const infrastructureOther = document.getElementById('infrastructureOther');
+
+// Show/hide "Other" text field for infrastructure
+infrastructureTemplate.addEventListener('change', function() {
+    if (this.value === 'Other') {
+        infrastructureOtherGroup.classList.remove('hidden');
+        infrastructureOther.required = true;
+    } else {
+        infrastructureOtherGroup.classList.add('hidden');
+        infrastructureOther.required = false;
+        infrastructureOther.value = '';
     }
+});
+
+// Reset button handler
+resetButton.addEventListener('click', function() {
+    if (confirm('Are you sure you want to clear all form data? This action cannot be undone.')) {
+        form.reset();
+        infrastructureOtherGroup.classList.add('hidden');
+        infrastructureOther.required = false;
+        
+        // Clear all error states
+        document.querySelectorAll('.form-group').forEach(group => {
+            group.classList.remove('error');
+        });
+        
+        successMessage.style.display = 'none';
+        
+        // Scroll to top
+        window.scrollTo({ top: 0, behavior: 'smooth' });
+    }
+});
+
+// Helper function to generate workspace name
+function generateWorkspaceName() {
+    const department = document.getElementById('department').value;
+    const requestType = document.getElementById('requestType').value;
+    const timestamp = Date.now().toString().slice(-6);
+    
+    // Create a clean workspace name: dept-type-timestamp
+    const deptCode = department.toLowerCase().replace(/\s+/g, '-').substring(0, 10);
+    const typeCode = requestType.toLowerCase().replace(/\s+/g, '-').substring(0, 8);
+    
+    return `ws-${deptCode}-${typeCode}-${timestamp}`;
 }
+
+// Form submission handler
+form.addEventListener('submit', async function(e) {
+    e.preventDefault();
+    
+    // Clear previous errors
+    document.querySelectorAll('.form-group').forEach(group => {
+        group.classList.remove('error');
+    });
+    successMessage.style.display = 'none';
+
+    // Validate form
+    if (!form.checkValidity()) {
+        // Show errors for invalid fields
+        const invalidFields = form.querySelectorAll(':invalid');
+        invalidFields.forEach(field => {
+            const formGroup = field.closest('.form-group');
+            if (formGroup) {
+                formGroup.classList.add('error');
+            }
+        });
+        
+        // Scroll to first error
+        const firstError = document.querySelector('.form-group.error');
+        if (firstError) {
+            firstError.scrollIntoView({ behavior: 'smooth', block: 'center' });
+        }
+        return;
+    }
+
+    // Build payload with intake data + essential fields
+    const payload = {
+        // Essential fields for LA1 -> LA2 flow
+        workspaceName: generateWorkspaceName(),
+        owner: document.getElementById('requesterEmail').value,
+        
+        // Rich intake data for governance and auditing
+        intakeData: {
+            requesterDetails: {
+                name: document.getElementById('requesterName').value,
+                email: document.getElementById('requesterEmail').value,
+                jobTitle: document.getElementById('jobTitle').value,
+                department: document.getElementById('department').value
+            },
+            lineManagerApproval: {
+                name: document.getElementById('managerName').value,
+                email: document.getElementById('managerEmail').value
+            },
+            requestClassification: {
+                requestType: document.getElementById('requestType').value,
+                urgency: document.getElementById('urgency').value,
+                expectedDuration: document.getElementById('expectedDuration').value,
+                businessJustification: document.getElementById('businessJustification').value
+            },
+            infrastructureRequirement: {
+                template: document.getElementById('infrastructureTemplate').value,
+                otherDetails: infrastructureTemplate.value === 'Other' ? infrastructureOther.value : null
+            },
+            systemFields: {
+                submissionTimestamp: new Date().toISOString(),
+                formVersion: "tre-request-form-v2.1",
+                submittedFrom: window.location.href
+            }
+        }
+    };
+
+    // Submit to API
+    submitButton.disabled = true;
+    submitButton.textContent = 'Submitting...';
+
+    try {
+        const response = await fetch(API_ENDPOINT, {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json'
+            },
+            body: JSON.stringify(payload)
+        });
+
+        if (response.ok) {
+            successMessage.style.display = 'block';
+            form.reset();
+            infrastructureOtherGroup.classList.add('hidden');
+            window.scrollTo({ top: 0, behavior: 'smooth' });
+            
+            // Log success for debugging
+            console.log('Form submitted successfully:', payload);
+        } else {
+            const errorText = await response.text();
+            throw new Error(`HTTP ${response.status}: ${response.statusText}${errorText ? ' - ' + errorText : ''}`);
+        }
+    } catch (error) {
+        alert('Submission failed: ' + error.message + '\n\nPlease try again or contact support if the problem persists.');
+        console.error('Submission error:', error);
+        console.error('Payload attempted:', payload);
+    } finally {
+        submitButton.disabled = false;
+        submitButton.textContent = 'Submit Request';
+    }
+});
+
+// Real-time validation feedback
+form.querySelectorAll('input, select, textarea').forEach(field => {
+    field.addEventListener('blur', function() {
+        const formGroup = this.closest('.form-group');
+        if (formGroup) {
+            if (this.checkValidity()) {
+                formGroup.classList.remove('error');
+            } else {
+                formGroup.classList.add('error');
+            }
+        }
+    });
+    
+    // Clear error on input
+    field.addEventListener('input', function() {
+        const formGroup = this.closest('.form-group');
+        if (formGroup && formGroup.classList.contains('error')) {
+            if (this.checkValidity()) {
+                formGroup.classList.remove('error');
+            }
+        }
+    });
+});
+
+// Prevent accidental form submission on Enter key (except in textareas)
+form.addEventListener('keydown', function(e) {
+    if (e.key === 'Enter' && e.target.tagName !== 'TEXTAREA') {
+        e.preventDefault();
+    }
+});
