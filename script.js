@@ -1,8 +1,12 @@
 document.addEventListener("DOMContentLoaded", () => {
-
   const templateSelect = document.getElementById("templateSelect");
   const otherBox = document.getElementById("otherBox");
   const form = document.getElementById("treForm");
+
+  if (!templateSelect || !otherBox || !form) {
+    console.error("TRE form elements not found");
+    return;
+  }
 
   templateSelect.addEventListener("change", () => {
     if (templateSelect.value === "other") {
@@ -49,6 +53,8 @@ document.addEventListener("DOMContentLoaded", () => {
       }
     };
 
+    console.log("Submitting payload:", payload);
+
     await fetch("https://YOUR-LA1-ENDPOINT-HERE", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
@@ -56,8 +62,8 @@ document.addEventListener("DOMContentLoaded", () => {
     });
 
     alert("Request submitted for approval");
+
     form.reset();
     otherBox.classList.add("hidden");
   });
-
 });
