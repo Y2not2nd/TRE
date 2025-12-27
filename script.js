@@ -41,15 +41,14 @@ resetButton.addEventListener('click', function () {
 // Helper function to generate workspace name
 function generateWorkspaceName() {
     const department = document.getElementById('department').value.trim();
-    const requestType = document.getElementById('requestType').value.trim();
-    const workspaceBase = [department, requestType].filter(Boolean).join('-');
 
-    return (workspaceBase || 'tre-workspace')
+    return ('tre-' + department)
         .toLowerCase()
         .replace(/[^a-z0-9-]/g, '-')
         .replace(/-+/g, '-')
-        .replace(/^-|-$/g, '') || 'tre-workspace';
+        .replace(/^-|-$/g, '');
 }
+
 
 // Form submission handler
 form.addEventListener('submit', function (e) {
