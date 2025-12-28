@@ -1,0 +1,10 @@
+{
+  "location": "uksouth",
+  "network": {
+    "privateEndpointSubnetId": "/subscriptions/4d38ea20-7a50-4815-9c82-527d9f182f8b/resourceGroups/rg-tre-net-uksouth/providers/Microsoft.Network/virtualNetworks/vnet-tre-hub-uksouth/subnets/PrivateEndpoints"
+  },
+  "dns": {
+    "privateDnsSubscriptionId": "4d38ea20-7a50-4815-9c82-527d9f182f8b",
+    "privateDnsResourceGroupName": "rg-tre-mgmt-uksouth"
+  }
+}

@@ -1,0 +1,159 @@
+name: TRE Workspace Deployment
+
+on:
+  workflow_dispatch:
+    inputs:
+      correlationId:
+        description: 'Request Correlation ID'
+        required: true
+        type: string
+      blobContainer:
+        description: 'Blob Container Name'
+        required: true
+        type: string
+        default: 'tre-intake'
+      blobPath:
+        description: 'Blob Path within container'
+        required: true
+        type: string
+
+env:
+  AZURE_SUBSCRIPTION_ID: '4d38ea20-7a50-4815-9c82-527d9f182f8b'
+  AZURE_TENANT_ID: 'YOUR_TENANT_ID'
+  STORAGE_ACCOUNT: 'stretrequestsuks'
+  TEMPLATE_SPEC_NAME: 'tre-standard-research-workspace'
+  TEMPLATE_SPEC_RG: 'rg-tre-mgmt-uksouth'
+  LOCATION: 'uksouth'
+
+jobs:
+  deploy-tre-workspace:
+    runs-on: ubuntu-latest
+    environment: TRE-Production
+
+    permissions:
+      id-token: write
+      contents: read
+
+    steps:
+    - name: Checkout repository
+      uses: actions/checkout@v4
+
+    - name: Load Platform Configuration
+      run: |
+        CONFIG_FILE="config/platform-${{ env.LOCATION }}.json"
+        if [ ! -f "$CONFIG_FILE" ]; then
+          echo "Platform config not found: $CONFIG_FILE"
+          exit 1
+        fi
+        echo "Platform config loaded"
+
+    - name: Azure Login using OIDC
+      uses: azure/login@v2
+      with:
+        client-id: ${{ secrets.AZURE_CLIENT_ID }}
+        tenant-id: ${{ env.AZURE_TENANT_ID }}
+        subscription-id: ${{ env.AZURE_SUBSCRIPTION_ID }}
+
+    - name: Download Approved Request from Blob Storage
+      run: |
+        az storage blob download \
+          --account-name ${{ env.STORAGE_ACCOUNT }} \
+          --container-name '${{ inputs.blobContainer }}' \
+          --name '${{ inputs.blobPath }}' \
+          --file request-payload.json \
+          --auth-mode login
+
+        if ! jq -e '.requestSchemaVersion' request-payload.json > /dev/null 2>&1; then
+          jq '. + {requestSchemaVersion: "1.0"}' request-payload.json > tmp.json && mv tmp.json request-payload.json
+        fi
+
+        echo "Request payload downloaded"
+
+    - name: Transform Request to Deployment Parameters
+      run: |
+        python scripts/transform_request.py \
+          --input request-payload.json \
+          --config config/platform-${{ env.LOCATION }}.json \
+          --output deployment-parameters.json
+
+    - name: Validate Tag Presence
+      run: |
+        TAGS=$(jq -r '.parameters.tags.value' deployment-parameters.json)
+        COUNT=$(echo "$TAGS" | jq 'length')
+
+        if [ "$COUNT" -ne 5 ]; then
+          echo "Expected 5 tags, found $COUNT"
+          exit 1
+        fi
+
+        for TAG in CostCentre DataClassification Environment Owner System; do
+          if ! echo "$TAGS" | jq -e ".${TAG}" > /dev/null; then
+            echo "Missing tag: $TAG"
+            exit 1
+          fi
+        done
+
+        echo "Tag presence validated"
+
+    - name: Ensure Resource Group Exists
+      run: |
+        RG_NAME=$(jq -r '.parameters.resourceGroupName.value' deployment-parameters.json)
+        TAGS=$(jq -r '.parameters.tags.value | to_entries | map("\(.key)=\(.value)") | join(" ")' deployment-parameters.json)
+
+        if ! az group show --name "$RG_NAME" >/dev/null 2>&1; then
+          az group create \
+            --name "$RG_NAME" \
+            --location ${{ env.LOCATION }} \
+            --tags $TAGS \
+            --output none
+        fi
+
+        echo "Resource group ready: $RG_NAME"
+
+    - name: Deploy Template Spec
+      run: |
+        RG_NAME=$(jq -r '.parameters.resourceGroupName.value' deployment-parameters.json)
+
+        TEMPLATE_SPEC_ID="/subscriptions/${{ env.AZURE_SUBSCRIPTION_ID }}/resourceGroups/${{ env.TEMPLATE_SPEC_RG }}/providers/Microsoft.Resources/templateSpecs/${{ env.TEMPLATE_SPEC_NAME }}/versions/1.0.0"
+
+        az deployment group create \
+          --resource-group "$RG_NAME" \
+          --template-spec "$TEMPLATE_SPEC_ID" \
+          --parameters @deployment-parameters.json \
+          --name "tre-${{ inputs.correlationId }}"
+
+        echo "Deployment completed"
+
+    - name: Persist Deployment Result
+      if: success()
+      run: |
+        TIMESTAMP=$(date -u +"%Y-%m-%dT%H:%M:%SZ")
+
+        jq -n \
+          --arg correlationId "${{ inputs.correlationId }}" \
+          --arg timestamp "$TIMESTAMP" \
+          --arg runUrl "$GITHUB_SERVER_URL/$GITHUB_REPOSITORY/actions/runs/$GITHUB_RUN_ID" \
+          --arg rg "$(jq -r '.parameters.resourceGroupName.value' deployment-parameters.json)" \
+          --arg ws "$(jq -r '.parameters.workspaceName.value' deployment-parameters.json)" \
+          '{
+            correlationId: $correlationId,
+            timestamp: $timestamp,
+            deploymentRun: $runUrl,
+            resourceGroup: $rg,
+            workspaceName: $ws,
+            status: "Succeeded"
+          }' > deployment-result.json
+
+        az storage blob upload \
+          --account-name ${{ env.STORAGE_ACCOUNT }} \
+          --container-name tre-deployments \
+          --name "${{ inputs.correlationId }}/result.json" \
+          --file deployment-result.json \
+          --auth-mode login \
+          --overwrite
+
+    - name: Audit Log
+      if: always()
+      run: |
+        echo "TRE_DEPLOYMENT_AUDIT correlationId=${{ inputs.correlationId }} status=${{ job.status }}"
+

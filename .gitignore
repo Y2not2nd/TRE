@@ -1,0 +1,42 @@
+# Python
+__pycache__/
+*.py[cod]
+*.pyo
+*.pyd
+.Python
+env/
+venv/
+.venv/
+ENV/
+
+# Virtual environments
+pip-wheel-metadata/
+share/python-wheels/
+
+# OS / Editor
+.DS_Store
+Thumbs.db
+.vscode/
+.idea/
+
+# Logs
+*.log
+
+# Azure / local artefacts
+deployment-outputs.json
+deployment-result.json
+deployment-failure.json
+request.json
+deployment-parameters.json
+
+# Terraform / infra noise (future-proof)
+.terraform/
+*.tfstate
+*.tfstate.backup
+
+# GitHub Actions local
+.act/
+
+# Node (if ever added)
+node_modules/
+
