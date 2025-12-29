@@ -69,6 +69,13 @@ jobs:
 
         echo "Request payload downloaded"
 
+    - name: Derive Resource Group Name
+      run: |
+        DEPARTMENT=$(jq -r '.requester.department // "unknown"' request-payload.json | tr '[:upper:]' '[:lower:]')
+        RG_NAME="rg-tre-${DEPARTMENT}"
+        echo "RG_NAME=${RG_NAME}" >> $GITHUB_ENV
+        echo "Derived resource group: ${RG_NAME}"
+
     - name: Transform Request to Deployment Parameters
       run: |
         python scripts/transform_request.py \
@@ -97,7 +104,6 @@ jobs:
 
     - name: Ensure Resource Group Exists
       run: |
-        RG_NAME=$(jq -r '.parameters.resourceGroupName.value' deployment-parameters.json)
         TAGS=$(jq -r '.parameters.tags.value | to_entries | map("\(.key)=\(.value)") | join(" ")' deployment-parameters.json)
 
         if ! az group show --name "$RG_NAME" >/dev/null 2>&1; then
@@ -112,8 +118,6 @@ jobs:
 
     - name: Deploy Template Spec
       run: |
-        RG_NAME=$(jq -r '.parameters.resourceGroupName.value' deployment-parameters.json)
-
         TEMPLATE_SPEC_ID="/subscriptions/${{ env.AZURE_SUBSCRIPTION_ID }}/resourceGroups/${{ env.TEMPLATE_SPEC_RG }}/providers/Microsoft.Resources/templateSpecs/${{ env.TEMPLATE_SPEC_NAME }}/versions/1.0.0"
 
         az deployment group create \
@@ -133,7 +137,7 @@ jobs:
           --arg correlationId "${{ inputs.correlationId }}" \
           --arg timestamp "$TIMESTAMP" \
           --arg runUrl "$GITHUB_SERVER_URL/$GITHUB_REPOSITORY/actions/runs/$GITHUB_RUN_ID" \
-          --arg rg "$(jq -r '.parameters.resourceGroupName.value' deployment-parameters.json)" \
+          --arg rg "$RG_NAME" \
           --arg ws "$(jq -r '.parameters.workspaceName.value' deployment-parameters.json)" \
           '{
             correlationId: $correlationId,
@@ -156,4 +160,3 @@ jobs:
       if: always()
       run: |
         echo "TRE_DEPLOYMENT_AUDIT correlationId=${{ inputs.correlationId }} status=${{ job.status }}"
-
