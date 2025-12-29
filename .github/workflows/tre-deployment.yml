@@ -16,6 +16,7 @@ on:
         description: 'Blob Path within container'
         required: true
         type: string
+        default: 'approved/${{ github.event.inputs.correlationId }}.json'
 
 env:
   AZURE_SUBSCRIPTION_ID: '4d38ea20-7a50-4815-9c82-527d9f182f8b'
@@ -67,7 +68,7 @@ jobs:
           jq '. + {requestSchemaVersion: "1.0"}' request-payload.json > tmp.json && mv tmp.json request-payload.json
         fi
 
-        echo "Request payload downloaded"
+        echo "Approved request payload downloaded"
 
     - name: Derive Resource Group Name
       run: |
@@ -82,6 +83,13 @@ jobs:
           --input request-payload.json \
           --config config/platform-${{ env.LOCATION }}.json \
           --output deployment-parameters.json
+
+    - name: Inject Platform Storage Parameters
+      run: |
+        jq '.parameters += {
+          platformStorageAccountName: { value: "stretrequestsuks" },
+          platformStorageAccountResourceGroup: { value: "rg-tre-mgmt-uksouth" }
+        }' deployment-parameters.json > tmp.json && mv tmp.json deployment-parameters.json
 
     - name: Validate Tag Presence
       run: |
