@@ -96,11 +96,14 @@ jobs:
           --config config/platform-${{ env.LOCATION }}.json \
           --output deployment-parameters.json
 
-    - name: Inject Platform Storage Parameters
+    - name: Inject Platform Storage Parameters and Correct Subnet
       run: |
         jq '.parameters += {
           platformStorageAccountName: { value: "stretrequestsuks" },
-          platformStorageAccountResourceGroup: { value: "rg-tre-mgmt-uksouth" }
+          platformStorageAccountResourceGroup: { value: "rg-tre-mgmt-uksouth" },
+          privateEndpointSubnetId: {
+            value: "/subscriptions/4d38ea20-7a50-4815-9c82-527d9f182f8b/resourceGroups/rg-tre-net-uksouth/providers/Microsoft.Network/virtualNetworks/vnet-tre-hub-uksouth/subnets/snet-private-endpoints"
+          }
         }' deployment-parameters.json > tmp.json && mv tmp.json deployment-parameters.json
 
     - name: Validate Tag Presence
