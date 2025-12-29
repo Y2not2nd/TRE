@@ -126,7 +126,7 @@ jobs:
 
     - name: Deploy Template Spec
       run: |
-        TEMPLATE_SPEC_ID="/subscriptions/${{ env.AZURE_SUBSCRIPTION_ID }}/resourceGroups/${{ env.TEMPLATE_SPEC_RG }}/providers/Microsoft.Resources/templateSpecs/${{ env.TEMPLATE_SPEC_NAME }}/versions/1.0.0"
+        TEMPLATE_SPEC_ID="/subscriptions/${{ env.AZURE_SUBSCRIPTION_ID }}/resourceGroups/${{ env.TEMPLATE_SPEC_RG }}/providers/Microsoft.Resources/templateSpecs/${{ env.TEMPLATE_SPEC_NAME }}/versions/1.0.1"
 
         az deployment group create \
           --resource-group "$RG_NAME" \
