@@ -12,6 +12,11 @@ on:
         required: true
         type: string
         default: 'tre-intake'
+      blobPath:
+        description: 'Optional blob path override (e.g. approved/<correlationId>.json)'
+        required: false
+        type: string
+        default: ''
 
 env:
   AZURE_SUBSCRIPTION_ID: '4d38ea20-7a50-4815-9c82-527d9f182f8b'
@@ -50,11 +55,20 @@ jobs:
         tenant-id: ${{ env.AZURE_TENANT_ID }}
         subscription-id: ${{ env.AZURE_SUBSCRIPTION_ID }}
 
+    - name: Resolve Approved Blob Path
+      shell: bash
+      run: |
+        if [ -n "${{ inputs.blobPath }}" ]; then
+          BLOB_PATH="${{ inputs.blobPath }}"
+        else
+          BLOB_PATH="approved/${{ inputs.correlationId }}.json"
+        fi
+
+        echo "BLOB_PATH=$BLOB_PATH" >> "$GITHUB_ENV"
+        echo "Resolved blob path: $BLOB_PATH"
+
     - name: Download Approved Request from Blob Storage
       run: |
-        BLOB_PATH="approved/${{ inputs.correlationId }}.json"
-        echo "Using approved blob path: $BLOB_PATH"
-
         az storage blob download \
           --account-name ${{ env.STORAGE_ACCOUNT }} \
           --container-name '${{ inputs.blobContainer }}' \
