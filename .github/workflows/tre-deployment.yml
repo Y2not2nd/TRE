@@ -61,7 +61,9 @@ jobs:
         if [ -n "${{ inputs.blobPath }}" ]; then
           BLOB_PATH="${{ inputs.blobPath }}"
         else
-          BLOB_PATH="approved/${{ inputs.correlationId }}.json"
+          RAW_ID="${{ inputs.correlationId }}"
+          CLEAN_ID="${RAW_ID%.json}"
+          BLOB_PATH="approved/${CLEAN_ID}.json"
         fi
 
         echo "BLOB_PATH=$BLOB_PATH" >> "$GITHUB_ENV"
