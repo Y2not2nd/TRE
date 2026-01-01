@@ -156,20 +156,20 @@ jobs:
       run: |
         TIMESTAMP=$(date -u +"%Y-%m-%dT%H:%M:%SZ")
 
-        jq -n \
+        jq \
           --arg correlationId "${{ inputs.correlationId }}" \
           --arg timestamp "$TIMESTAMP" \
           --arg runUrl "$GITHUB_SERVER_URL/$GITHUB_REPOSITORY/actions/runs/$GITHUB_RUN_ID" \
           --arg rg "$RG_NAME" \
           --arg ws "$(jq -r '.parameters.workspaceName.value' deployment-parameters.json)" \
-          '{
+          '. + {
             correlationId: $correlationId,
             timestamp: $timestamp,
             deploymentRun: $runUrl,
             resourceGroup: $rg,
             workspaceName: $ws,
             status: "Succeeded"
-          }' > deployment-result.json
+          }' request-payload.json > deployment-result.json
 
         az storage blob upload \
           --account-name ${{ env.STORAGE_ACCOUNT }} \
