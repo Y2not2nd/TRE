@@ -1,0 +1,285 @@
+{
+    "definition": {
+        "$schema": "https://schema.management.azure.com/providers/Microsoft.Logic/schemas/2016-06-01/workflowdefinition.json#",
+        "contentVersion": "1.0.3.2",
+        "triggers": {
+            "When_an_HTTP_request_is_received": {
+                "type": "Request",
+                "kind": "Http",
+                "inputs": {
+                    "method": "POST",
+                    "schema": {
+                        "type": "object",
+                        "required": [
+                            "workspaceName",
+                            "owner"
+                        ],
+                        "properties": {
+                            "workspaceName": {
+                                "type": "string",
+                                "minLength": 3
+                            },
+                            "owner": {
+                                "type": "string"
+                            }
+                        }
+                    }
+                }
+            }
+        },
+        "actions": {
+            "Initialize_variables": {
+                "runAfter": {},
+                "type": "InitializeVariable",
+                "inputs": {
+                    "variables": [
+                        {
+                            "name": "requestId",
+                            "type": "string",
+                            "value": "@{guid()}"
+                        },
+                        {
+                            "name": "researchTags",
+                            "type": "object",
+                            "value": {
+                                "CostCentre": "TRE",
+                                "System": "TRE",
+                                "Environment": "research",
+                                "DataClassification": "restricted",
+                                "Owner": "Yassin"
+                            }
+                        },
+                        {
+                            "name": "internalExecutionKey",
+                            "type": "string",
+                            "value": "dfdf"
+                        },
+                        {
+                            "name": "location",
+                            "type": "string",
+                            "value": "uksouth"
+                        },
+                        {
+                            "name": "privateEndpointSubnetId",
+                            "type": "string",
+                            "value": "/subscriptions/4d38ea20-7a50-4815-9c82-527d9f182f8b/resourceGroups/rg-tre-network-uksouth/providers/Microsoft.Network/virtualNetworks/vnet-tre-uksouth/subnets/snet-privateendpoints"
+                        },
+                        {
+                            "name": "privateDnsSubscriptionId",
+                            "type": "string",
+                            "value": "4d38ea20-7a50-4815-9c82-527d9f182f8b"
+                        },
+                        {
+                            "name": "privateDnsResourceGroupName",
+                            "type": "string",
+                            "value": "rg-tre-net-uksouth"
+                        },
+                        {
+                            "name": "templateSpecId",
+                            "type": "string",
+                            "value": "/subscriptions/4d38ea20-7a50-4815-9c82-527d9f182f8b/resourceGroups/rg-tre-mgmt-uksouth/providers/Microsoft.Resources/templateSpecs/tre-workspace-template/versions/1.0.2"
+                        }
+                    ]
+                }
+            },
+            "Create_blob_(V2)": {
+                "runAfter": {
+                    "Initialize_variables": [
+                        "Succeeded"
+                    ]
+                },
+                "type": "ApiConnection",
+                "inputs": {
+                    "host": {
+                        "connection": {
+                            "name": "@parameters('$connections')['azureblob']['connectionId']"
+                        }
+                    },
+                    "method": "post",
+                    "body": "@string(triggerBody())",
+                    "headers": {
+                        "Content-Type": "application/json"
+                    },
+                    "path": "/v2/datasets/@{encodeURIComponent(encodeURIComponent('stretrequestsuks'))}/files",
+                    "queries": {
+                        "folderPath": "/tre-intake/pending",
+                        "name": "@{variables('requestId')}.json"
+                    }
+                }
+            },
+            "Validate_workspace_name": {
+                "actions": {
+                    "Send_approval_email": {
+                        "type": "ApiConnectionWebhook",
+                        "inputs": {
+                            "host": {
+                                "connection": {
+                                    "name": "@parameters('$connections')['outlook']['connectionId']"
+                                }
+                            },
+                            "body": {
+                                "NotificationUrl": "@listCallbackUrl()",
+                                "Message": {
+                                    "To": "yassin_123@hotmail.co.uk",
+                                    "Subject": "TRE – Research Workspace Request Approval",
+                                    "Options": "Approve, Reject",
+                                    "Body": "<p>A new <strong>Research Workspace</strong> request has been submitted for initial approval.</p>\n\n<table style=\"border-collapse:collapse\">\n  <tr>\n    <td style=\"padding:6px 12px\"><strong>Workspace Name</strong></td>\n    <td style=\"padding:6px 12px\">@{triggerBody()?['workspaceName']}</td>\n  </tr>\n  <tr>\n    <td style=\"padding:6px 12px\"><strong>Requested By</strong></td>\n    <td style=\"padding:6px 12px\">@{triggerBody()?['owner']}</td>\n  </tr>\n</table>\n\n<p>Please review the request and select <strong>Approve</strong> or <strong>Reject</strong>.</p>\n\n<p style=\"font-size:12px;color:#666\">All requests and decisions are logged and retained for audit purposes.</p>"
+                                }
+                            },
+                            "path": "/approvalmail/$subscriptions"
+                        }
+                    },
+                    "Approval_decision": {
+                        "actions": {
+                            "Copy_to_approved": {
+                                "type": "ApiConnection",
+                                "inputs": {
+                                    "host": {
+                                        "connection": {
+                                            "name": "@parameters('$connections')['azureblob']['connectionId']"
+                                        }
+                                    },
+                                    "method": "post",
+                                    "path": "/v2/datasets/@{encodeURIComponent(encodeURIComponent('stretrequestsuks'))}/copyFile",
+                                    "queries": {
+                                        "source": "tre-intake/pending/@{variables('requestId')}.json",
+                                        "destination": "tre-intake/approved/@{variables('requestId')}.json",
+                                        "overwrite": true,
+                                        "queryParametersSingleEncoded": true
+                                    }
+                                }
+                            },
+                            "Call_Deployment_Logic_App": {
+                                "runAfter": {
+                                    "Copy_to_approved": [
+                                        "Succeeded"
+                                    ]
+                                },
+                                "type": "Http",
+                                "inputs": {
+                                    "uri": "https://prod-03.uksouth.logic.azure.com:443/workflows/1a5d35392a594f2ea8e53d12accc8231/triggers/When_an_HTTP_request_is_received/paths/invoke?api-version=2016-10-01&sp=%2Ftriggers%2FWhen_an_HTTP_request_is_received%2Frun&sv=1.0&sig=LvnpxYV1cySZ_m0D63rwEedqDT3mtUHRZnme_w5kbkI",
+                                    "method": "POST",
+                                    "headers": {
+                                        "Content-Type": "application/json",
+                                        "x-tre-internal-key": "@{variables('internalExecutionKey')}"
+                                    },
+                                    "body": {
+                                        "requestId": "@{variables('requestId')}",
+                                        "workspaceName": "@{triggerBody()?['workspaceName']}",
+                                        "owner": "@{triggerBody()?['owner']}",
+                                        "location": "@{variables('location')}",
+                                        "researchTags": "@{variables('researchTags')}",
+                                        "network": {
+                                            "privateEndpointSubnetId": "@{variables('privateEndpointSubnetId')}"
+                                        },
+                                        "dns": {
+                                            "privateDnsSubscriptionId": "@{variables('privateDnsSubscriptionId')}",
+                                            "privateDnsResourceGroupName": "@{variables('privateDnsResourceGroupName')}"
+                                        },
+                                        "templateSpec": {
+                                            "id": "@{variables('templateSpecId')}"
+                                        }
+                                    }
+                                }
+                            }
+                        },
+                        "runAfter": {
+                            "Send_approval_email": [
+                                "Succeeded"
+                            ]
+                        },
+                        "else": {
+                            "actions": {
+                                "Copy_to_rejected": {
+                                    "type": "ApiConnection",
+                                    "inputs": {
+                                        "host": {
+                                            "connection": {
+                                                "name": "@parameters('$connections')['azureblob']['connectionId']"
+                                            }
+                                        },
+                                        "method": "post",
+                                        "path": "/v2/datasets/@{encodeURIComponent(encodeURIComponent('stretrequestsuks'))}/copyFile",
+                                        "queries": {
+                                            "source": "tre-intake/pending/@{variables('requestId')}.json",
+                                            "destination": "tre-intake/rejected/@{variables('requestId')}.json",
+                                            "overwrite": true,
+                                            "queryParametersSingleEncoded": true
+                                        }
+                                    }
+                                },
+                                "Response_Rejected": {
+                                    "runAfter": {
+                                        "Copy_to_rejected": [
+                                            "Succeeded"
+                                        ]
+                                    },
+                                    "type": "Response",
+                                    "inputs": {
+                                        "statusCode": 403,
+                                        "body": {
+                                            "status": "Rejected",
+                                            "message": "Request rejected by approver"
+                                        }
+                                    }
+                                }
+                            }
+                        },
+                        "expression": {
+                            "equals": [
+                                "@body('Send_approval_email')?['SelectedOption']",
+                                "Approve"
+                            ]
+                        },
+                        "type": "If"
+                    }
+                },
+                "runAfter": {
+                    "Create_blob_(V2)": [
+                        "Succeeded"
+                    ]
+                },
+                "else": {
+                    "actions": {}
+                },
+                "expression": {
+                    "greaterOrEquals": [
+                        "@length(triggerBody()?['workspaceName'])",
+                        3
+                    ]
+                },
+                "type": "If"
+            }
+        },
+        "outputs": {},
+        "parameters": {
+            "$connections": {
+                "type": "Object",
+                "defaultValue": {}
+            }
+        }
+    },
+    "parameters": {
+        "$connections": {
+            "type": "Object",
+            "value": {
+                "azureblob": {
+                    "id": "/subscriptions/4d38ea20-7a50-4815-9c82-527d9f182f8b/providers/Microsoft.Web/locations/uksouth/managedApis/azureblob",
+                    "connectionId": "/subscriptions/4d38ea20-7a50-4815-9c82-527d9f182f8b/resourceGroups/rg-tre-mgmt-uksouth/providers/Microsoft.Web/connections/azureblob",
+                    "connectionName": "azureblob",
+                    "connectionProperties": {
+                        "authentication": {
+                            "type": "ManagedServiceIdentity"
+                        }
+                    }
+                },
+                "outlook": {
+                    "id": "/subscriptions/4d38ea20-7a50-4815-9c82-527d9f182f8b/providers/Microsoft.Web/locations/uksouth/managedApis/outlook",
+                    "connectionId": "/subscriptions/4d38ea20-7a50-4815-9c82-527d9f182f8b/resourceGroups/rg-tre-mgmt-uksouth/providers/Microsoft.Web/connections/outlook",
+                    "connectionName": "outlook",
+                    "connectionProperties": {}
+                }
+            }
+        }
+    }
+}
